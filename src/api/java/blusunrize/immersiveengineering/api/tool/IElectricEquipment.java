@@ -14,7 +14,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public interface IElectricEquipment
@@ -32,6 +34,27 @@ public interface IElectricEquipment
 	void onStrike(ItemStack equipped, EquipmentSlot eqSlot, LivingEntity owner, Map<String, Object> cache, @Nullable DamageSource dmg,
 				  ElectricSource desc);
 
+	/**
+	 * Handler for additional equipment sources (e.g. Curios slots) that should be checked when applying electric effects.
+	 * Register via {@link #ADDITIONAL_STRIKE_HANDLERS}.
+	 */
+	@FunctionalInterface
+	interface AdditionalStrikeHandler
+	{
+		/**
+		 * Apply electric strike logic to any additional equipped items from a non-vanilla slot source.
+		 * The shared {@code cache} map must be forwarded to each {@link IElectricEquipment#onStrike} call so that
+		 * all equipped pieces (vanilla + additional) can coordinate within the same strike.
+		 */
+		void applyToEntity(LivingEntity entity, Map<String, Object> cache, @Nullable DamageSource dmg, ElectricSource source);
+	}
+
+	/**
+	 * Additional handlers for non-vanilla equipment sources (e.g. Curios slots).
+	 * Handlers registered here are invoked by {@link #applyToEntity} after all vanilla equipment slots have been checked.
+	 */
+	List<AdditionalStrikeHandler> ADDITIONAL_STRIKE_HANDLERS = new ArrayList<>();
+
 	static void applyToEntity(LivingEntity entity, @Nullable DamageSource dmg, ElectricSource source)
 	{
 		Map<String, Object> cache = new HashMap<>();
@@ -41,6 +64,8 @@ public interface IElectricEquipment
 			if(!s.isEmpty()&&s.getItem() instanceof IElectricEquipment)
 				((IElectricEquipment)s.getItem()).onStrike(s, slot, entity, cache, dmg, source);
 		}
+		for(AdditionalStrikeHandler handler : ADDITIONAL_STRIKE_HANDLERS)
+			handler.applyToEntity(entity, cache, dmg, source);
 	}
 
 	// this isn't just a float so it can be overridden, for special sources
